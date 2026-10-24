@@ -144,7 +144,6 @@ public class EndpointListenerContainer implements AutoCloseable {
 		}
 
 		@Override
-		@SuppressWarnings("unchecked")
 		public void onMessage(jakarta.jms.Message message) {
 			if (paused.get()) {
 				LOGGER.debug("Message ignored because endpoint {} is paused.", endpoint.getName());
