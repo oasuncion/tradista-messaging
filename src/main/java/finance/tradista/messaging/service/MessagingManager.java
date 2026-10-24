@@ -1,21 +1,22 @@
 package finance.tradista.messaging.service;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.hibernate.StatelessSession;
 import org.hibernate.Transaction;
 
 import finance.tradista.messaging.exception.TradistaMessagingBusinessException;
 import finance.tradista.messaging.exception.TradistaMessagingTechnicalException;
-import finance.tradista.messaging.jms.JmsConnectionProvider;
-import finance.tradista.messaging.jms.JmsEndpointListenerContainer;
-import finance.tradista.messaging.jms.JmsMessageConverter;
+import finance.tradista.messaging.broker.ConnectionProvider;
+import finance.tradista.messaging.broker.EndpointListenerContainer;
+import finance.tradista.messaging.broker.MessageConverter;
 import finance.tradista.messaging.model.FilterConfig;
 import finance.tradista.messaging.model.LifecycleStatus;
 import finance.tradista.messaging.model.Message;
@@ -65,20 +66,20 @@ import jakarta.persistence.Persistence;
  ********************************************************************************/
 
 /**
- * Core facade and service manager for Tradista Messaging.
- * Operates purely on Domain POJOs while delegating persistence to Jakarta Data repositories.
+ * Core facade and service manager for Tradista Messaging. Operates purely on
+ * Domain POJOs while delegating persistence to Jakarta Data repositories.
  * 
  * @author Olivier Asuncion
  */
 public final class MessagingManager {
 
-	private static final Logger LOGGER = LogManager.getLogger(MessagingManager.class);
+	private static final Logger LOGGER = LoggerFactory.getLogger(MessagingManager.class);
 
-	private static final ConcurrentMap<String, MessageQueue> RUNTIME_QUEUES = new ConcurrentHashMap<>();
-	private static final ConcurrentMap<String, JmsEndpointListenerContainer> JMS_CONTAINERS = new ConcurrentHashMap<>();
+	private static final Map<String, MessageQueue> RUNTIME_QUEUES = new ConcurrentHashMap<>();
+	private static final Map<String, EndpointListenerContainer> BROKER_CONTAINERS = new ConcurrentHashMap<>();
 
 	private static EntityManagerFactory entityManagerFactory;
-	private static JmsConnectionProvider jmsConnectionProvider;
+	private static ConnectionProvider connectionProvider;
 
 	static {
 		try {
@@ -95,12 +96,12 @@ public final class MessagingManager {
 		entityManagerFactory = emf;
 	}
 
-	public static void setJmsConnectionProvider(JmsConnectionProvider provider) {
-		jmsConnectionProvider = provider;
+	public static void setConnectionProvider(ConnectionProvider provider) {
+		connectionProvider = provider;
 	}
 
-	public static JmsConnectionProvider getJmsConnectionProvider() {
-		return jmsConnectionProvider;
+	public static ConnectionProvider getConnectionProvider() {
+		return connectionProvider;
 	}
 
 	// -------------------------------------------------------------
@@ -129,8 +130,8 @@ public final class MessagingManager {
 				throw e;
 			}
 		} catch (Exception e) {
-			if (e instanceof TradistaMessagingBusinessException) {
-				throw (TradistaMessagingBusinessException) e;
+			if (e instanceof TradistaMessagingBusinessException tmbe) {
+				throw tmbe;
 			}
 			throw new TradistaMessagingTechnicalException("Error while saving queue: " + e.getMessage(), e);
 		}
@@ -189,8 +190,8 @@ public final class MessagingManager {
 				throw e;
 			}
 		} catch (Exception e) {
-			if (e instanceof TradistaMessagingBusinessException) {
-				throw (TradistaMessagingBusinessException) e;
+			if (e instanceof TradistaMessagingBusinessException tmbe) {
+				throw tmbe;
 			}
 			throw new TradistaMessagingTechnicalException("Error while saving filter config: " + e.getMessage(), e);
 		}
@@ -230,10 +231,9 @@ public final class MessagingManager {
 
 			MessageQueueEntity defaultQueueEntity = null;
 			if (router.getDefaultOutputQueue() != null) {
-				defaultQueueEntity = queueRepo.findByName(router.getDefaultOutputQueue().getName())
-						.orElseThrow(() -> new TradistaMessagingBusinessException(
-								String.format("Default queue '%s' does not exist.",
-										router.getDefaultOutputQueue().getName())));
+				defaultQueueEntity = queueRepo.findByName(router.getDefaultOutputQueue().getName()).orElseThrow(
+						() -> new TradistaMessagingBusinessException(String.format("Default queue '%s' does not exist.",
+								router.getDefaultOutputQueue().getName())));
 			}
 
 			Optional<MessageRouterEntity> existing = repo.findByName(router.getName());
@@ -248,8 +248,7 @@ public final class MessagingManager {
 					entity = repo.update(entity);
 					// Delete existing rules for this router
 					session.createMutationQuery("DELETE FROM RoutingRuleEntity r WHERE r.router.id = :routerId")
-							.setParameter("routerId", entity.getId())
-							.executeUpdate();
+							.setParameter("routerId", entity.getId()).executeUpdate();
 				} else {
 					entity = MessageRouterMapper.toEntity(router, defaultQueueEntity);
 					entity = repo.insert(entity);
@@ -273,8 +272,8 @@ public final class MessagingManager {
 				throw e;
 			}
 		} catch (Exception e) {
-			if (e instanceof TradistaMessagingBusinessException) {
-				throw (TradistaMessagingBusinessException) e;
+			if (e instanceof TradistaMessagingBusinessException tmbe) {
+				throw tmbe;
 			}
 			throw new TradistaMessagingTechnicalException("Error while saving router: " + e.getMessage(), e);
 		}
@@ -309,9 +308,11 @@ public final class MessagingManager {
 	public static long saveEndpoint(MessageEndpoint endpoint) throws TradistaMessagingBusinessException {
 		TradistaMessagingUtil.checkEndpoint(endpoint);
 		try (StatelessSession session = PersistenceRepositoryFactory.openStatelessSession(entityManagerFactory)) {
-			MessageEndpointEntityRepository repo = PersistenceRepositoryFactory.createMessageEndpointRepository(session);
+			MessageEndpointEntityRepository repo = PersistenceRepositoryFactory
+					.createMessageEndpointRepository(session);
 			MessageQueueEntityRepository queueRepo = PersistenceRepositoryFactory.createMessageQueueRepository(session);
-			FilterConfigEntityRepository filterRepo = PersistenceRepositoryFactory.createFilterConfigRepository(session);
+			FilterConfigEntityRepository filterRepo = PersistenceRepositoryFactory
+					.createFilterConfigRepository(session);
 
 			MessageQueueEntity queueEntity = queueRepo.findByName(endpoint.getQueue().getName())
 					.orElseThrow(() -> new TradistaMessagingBusinessException(
@@ -337,7 +338,8 @@ public final class MessagingManager {
 					entity.setConsumerClass(endpoint.getConsumerClass());
 					if (endpoint.getPollerConfig() != null) {
 						entity.getPollerConfig().setDelayMs(endpoint.getPollerConfig().getDelayMs());
-						entity.getPollerConfig().setMaxMessagesPerPoll(endpoint.getPollerConfig().getMaxMessagesPerPoll());
+						entity.getPollerConfig()
+								.setMaxMessagesPerPoll(endpoint.getPollerConfig().getMaxMessagesPerPoll());
 					}
 					entity.setStatus(endpoint.getStatus());
 					entity = repo.update(entity);
@@ -352,8 +354,8 @@ public final class MessagingManager {
 				throw e;
 			}
 		} catch (Exception e) {
-			if (e instanceof TradistaMessagingBusinessException) {
-				throw (TradistaMessagingBusinessException) e;
+			if (e instanceof TradistaMessagingBusinessException tmbe) {
+				throw tmbe;
 			}
 			throw new TradistaMessagingTechnicalException("Error while saving endpoint: " + e.getMessage(), e);
 		}
@@ -364,14 +366,16 @@ public final class MessagingManager {
 			return null;
 		}
 		try (StatelessSession session = PersistenceRepositoryFactory.openStatelessSession(entityManagerFactory)) {
-			MessageEndpointEntityRepository repo = PersistenceRepositoryFactory.createMessageEndpointRepository(session);
+			MessageEndpointEntityRepository repo = PersistenceRepositoryFactory
+					.createMessageEndpointRepository(session);
 			return repo.findByName(name).map(MessageEndpointMapper::toDomain).orElse(null);
 		}
 	}
 
 	public static List<MessageEndpoint> getAllEndpoints() {
 		try (StatelessSession session = PersistenceRepositoryFactory.openStatelessSession(entityManagerFactory)) {
-			MessageEndpointEntityRepository repo = PersistenceRepositoryFactory.createMessageEndpointRepository(session);
+			MessageEndpointEntityRepository repo = PersistenceRepositoryFactory
+					.createMessageEndpointRepository(session);
 			List<MessageEndpointEntity> entities = repo.findAllOrdered();
 			List<MessageEndpoint> result = new ArrayList<>(entities.size());
 			for (MessageEndpointEntity entity : entities) {
@@ -402,7 +406,8 @@ public final class MessagingManager {
 
 		endpoint.setStatus(status);
 		try (StatelessSession session = PersistenceRepositoryFactory.openStatelessSession(entityManagerFactory)) {
-			MessageEndpointEntityRepository repo = PersistenceRepositoryFactory.createMessageEndpointRepository(session);
+			MessageEndpointEntityRepository repo = PersistenceRepositoryFactory
+					.createMessageEndpointRepository(session);
 			Optional<MessageEndpointEntity> existing = repo.findByName(name);
 			if (existing.isPresent()) {
 				Transaction tx = session.beginTransaction();
@@ -419,19 +424,19 @@ public final class MessagingManager {
 		}
 
 		final MessageEndpoint finalEndpoint = endpoint;
-		if (jmsConnectionProvider != null) {
+		if (connectionProvider != null) {
 			try {
-				JmsEndpointListenerContainer container = JMS_CONTAINERS.computeIfAbsent(name,
-						k -> new JmsEndpointListenerContainer(finalEndpoint, jmsConnectionProvider));
+				EndpointListenerContainer container = BROKER_CONTAINERS.computeIfAbsent(name,
+						k -> new EndpointListenerContainer(finalEndpoint, connectionProvider));
 				switch (status) {
 				case RUNNING -> container.start();
 				case PAUSED -> container.pause();
 				case STOPPED -> container.stop();
 				}
 			} catch (Exception e) {
-				LOGGER.error("Failed to update JMS container status for endpoint {}: {}", name, e.getMessage(), e);
+				LOGGER.error("Failed to update listener container status for endpoint {}: {}", name, e.getMessage(), e);
 				throw new TradistaMessagingTechnicalException(
-						"Failed to update JMS container status for endpoint: " + name, e);
+						"Failed to update listener container status for endpoint: " + name, e);
 			}
 		}
 
@@ -442,20 +447,20 @@ public final class MessagingManager {
 	// Messaging Operations (Send, Receive, Route, Poller)
 	// -------------------------------------------------------------
 
-	public static <T> void send(String queueName, Message<T> message) {
-		if (jmsConnectionProvider != null) {
+	public static <T extends Serializable> void send(String queueName, Message<T> message) {
+		if (connectionProvider != null) {
 			try {
-				Connection connection = jmsConnectionProvider.getConnection();
+				Connection connection = connectionProvider.getConnection();
 				try (Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE)) {
-					Destination destination = jmsConnectionProvider.resolveQueue(session, queueName);
+					Destination destination = connectionProvider.resolveQueue(session, queueName);
 					try (MessageProducer producer = session.createProducer(destination)) {
-						jakarta.jms.Message jmsMsg = JmsMessageConverter.toJmsMessage(session, message, null);
-						producer.send(jmsMsg);
+						jakarta.jms.Message brokerMessage = MessageConverter.toBrokerMessage(session, message, null);
+						producer.send(brokerMessage);
 					}
 				}
 				return;
 			} catch (JMSException e) {
-				throw new TradistaMessagingTechnicalException("JMS send failed on queue: " + queueName, e);
+				throw new TradistaMessagingTechnicalException("Send failed on queue: " + queueName, e);
 			}
 		}
 
@@ -473,7 +478,7 @@ public final class MessagingManager {
 	}
 
 	@SuppressWarnings("unchecked")
-	public static <T> Message<T> receive(String queueName) {
+	public static <T extends Serializable> Message<T> receive(String queueName) {
 		MessageQueue queue = RUNTIME_QUEUES.get(queueName);
 		if (queue == null) {
 			queue = getQueueByName(queueName);
@@ -484,7 +489,7 @@ public final class MessagingManager {
 		return (Message<T>) queue.getRuntimeQueue().poll();
 	}
 
-	public static <T> void route(MessageRouter router, Message<T> message, String eventType) {
+	public static <T extends Serializable> void route(MessageRouter router, Message<T> message, String eventType) {
 		if (router == null || message == null) {
 			return;
 		}
@@ -494,7 +499,7 @@ public final class MessagingManager {
 		}
 	}
 
-	public static <T> void publishEvent(String routerName, String eventType, Message<T> message)
+	public static <T extends Serializable> void publishEvent(String routerName, String eventType, Message<T> message)
 			throws TradistaMessagingBusinessException {
 		MessageRouter router = getRouterByName(routerName);
 		if (router == null) {
@@ -503,22 +508,19 @@ public final class MessagingManager {
 		route(router, message, eventType);
 	}
 
-	@SuppressWarnings("unchecked")
-	public static <T> int pollEndpoint(String endpointName) {
+	public static <T extends Serializable> int pollEndpoint(String endpointName) {
 		MessageEndpoint endpoint = getEndpointByName(endpointName);
 		if (endpoint == null || endpoint.getStatus() != LifecycleStatus.RUNNING) {
 			return 0;
 		}
 
 		int maxPoll = endpoint.getPollerConfig() != null ? endpoint.getPollerConfig().getMaxMessagesPerPoll() : 10;
-		MessageConsumer<T> consumer = (MessageConsumer<T>) endpoint.getConsumerInstance();
+		MessageConsumer<T> consumer = TradistaMessagingUtil.createConsumerInstance(endpoint);
 		if (consumer == null) {
 			return 0;
 		}
 
-		MessageFilter<T> filter = endpoint.getFilterConfig() != null
-				? (MessageFilter<T>) endpoint.getFilterConfig().getInstance()
-				: null;
+		MessageFilter<T> filter = TradistaMessagingUtil.createFilterInstance(endpoint.getFilterConfig());
 
 		int processed = 0;
 		for (int i = 0; i < maxPoll; i++) {

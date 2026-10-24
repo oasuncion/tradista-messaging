@@ -25,7 +25,7 @@ import java.util.Objects;
  * 
  * @author Olivier Asuncion
  */
-public class PollerConfig implements Serializable, Cloneable {
+public class PollerConfig implements Serializable {
 
 	private static final long serialVersionUID = 1L;
 
@@ -54,15 +54,6 @@ public class PollerConfig implements Serializable, Cloneable {
 
 	public void setMaxMessagesPerPoll(int maxMessagesPerPoll) {
 		this.maxMessagesPerPoll = maxMessagesPerPoll;
-	}
-
-	@Override
-	public PollerConfig clone() {
-		try {
-			return (PollerConfig) super.clone();
-		} catch (CloneNotSupportedException e) {
-			throw new AssertionError();
-		}
 	}
 
 	@Override

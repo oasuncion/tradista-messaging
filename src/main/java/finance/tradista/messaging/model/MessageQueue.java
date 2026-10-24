@@ -30,7 +30,7 @@ import jakarta.jms.Queue;
  * 
  * @author Olivier Asuncion
  */
-public class MessageQueue implements Queue, Serializable, Cloneable {
+public class MessageQueue implements Queue, Serializable {
 
 	private static final long serialVersionUID = 1L;
 
@@ -59,7 +59,7 @@ public class MessageQueue implements Queue, Serializable, Cloneable {
 
 	@Override
 	public String getQueueName() {
-		return name;
+		return getName();
 	}
 
 	public String getDescription() {
@@ -92,17 +92,6 @@ public class MessageQueue implements Queue, Serializable, Cloneable {
 			initRuntimeQueue();
 		}
 		return runtimeQueue;
-	}
-
-	@Override
-	public MessageQueue clone() {
-		try {
-			MessageQueue clone = (MessageQueue) super.clone();
-			clone.initRuntimeQueue();
-			return clone;
-		} catch (CloneNotSupportedException e) {
-			throw new AssertionError();
-		}
 	}
 
 	@Override

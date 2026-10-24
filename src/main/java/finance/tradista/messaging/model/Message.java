@@ -30,22 +30,26 @@ import java.util.UUID;
  * @param <T> the type of payload
  * @author Olivier Asuncion
  */
-public class Message<T> implements Serializable {
+public class Message<T extends Serializable> implements Serializable {
 
 	private static final long serialVersionUID = 1L;
 
 	private final String id;
 	private final Instant timestamp;
 	private final T payload;
-	private final Map<String, Object> headers;
+	private final Map<String, Serializable> headers;
 
 	public Message(T payload) {
 		this(payload, Collections.emptyMap());
 	}
 
-	public Message(T payload, Map<String, Object> headers) {
-		this.id = UUID.randomUUID().toString();
-		this.timestamp = Instant.now();
+	public Message(T payload, Map<String, Serializable> headers) {
+		this(UUID.randomUUID().toString(), Instant.now(), payload, headers);
+	}
+
+	public Message(String id, Instant timestamp, T payload, Map<String, Serializable> headers) {
+		this.id = id != null ? id : UUID.randomUUID().toString();
+		this.timestamp = timestamp != null ? timestamp : Instant.now();
 		this.payload = payload;
 		this.headers = headers != null ? new HashMap<>(headers) : new HashMap<>();
 	}
@@ -62,15 +66,15 @@ public class Message<T> implements Serializable {
 		return payload;
 	}
 
-	public Map<String, Object> getHeaders() {
+	public Map<String, Serializable> getHeaders() {
 		return Collections.unmodifiableMap(headers);
 	}
 
-	public Object getHeader(String headerName) {
+	public Serializable getHeader(String headerName) {
 		return headers.get(headerName);
 	}
 
-	public void setHeader(String headerName, Object value) {
+	public void setHeader(String headerName, Serializable value) {
 		this.headers.put(headerName, value);
 	}
 

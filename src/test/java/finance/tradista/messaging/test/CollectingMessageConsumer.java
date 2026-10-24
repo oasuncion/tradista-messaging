@@ -1,5 +1,6 @@
 package finance.tradista.messaging.test;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -28,16 +29,16 @@ import finance.tradista.messaging.model.MessageConsumer;
  * 
  * @author Olivier Asuncion
  */
-public class CollectingMessageConsumer implements MessageConsumer<Object> {
+public class CollectingMessageConsumer implements MessageConsumer<Serializable> {
 
-	private static final List<Message<Object>> RECEIVED = Collections.synchronizedList(new ArrayList<>());
+	private static final List<Message<Serializable>> RECEIVED = Collections.synchronizedList(new ArrayList<>());
 
 	@Override
-	public void onMessage(Message<Object> message) {
+	public void onMessage(Message<Serializable> message) {
 		RECEIVED.add(message);
 	}
 
-	public static List<Message<Object>> getReceived() {
+	public static List<Message<Serializable>> getReceived() {
 		return RECEIVED;
 	}
 

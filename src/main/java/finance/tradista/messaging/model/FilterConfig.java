@@ -3,8 +3,6 @@ package finance.tradista.messaging.model;
 import java.io.Serializable;
 import java.util.Objects;
 
-import finance.tradista.messaging.exception.TradistaMessagingTechnicalException;
-
 /********************************************************************************
  * Copyright (c) 2026 Olivier Asuncion
  * 
@@ -23,19 +21,17 @@ import finance.tradista.messaging.exception.TradistaMessagingTechnicalException;
 
 /**
  * Filter definition specifying the filter name and implementing class.
- * Pure domain model without persistence dependencies.
+ * Pure domain configuration model.
  * 
  * @author Olivier Asuncion
  */
-public class FilterConfig implements Serializable, Cloneable {
+public class FilterConfig implements Serializable {
 
 	private static final long serialVersionUID = 1L;
 
 	private String name;
 	private String filterClass;
 	private String description;
-
-	private transient MessageFilter<?> instance;
 
 	public FilterConfig() {
 	}
@@ -59,7 +55,6 @@ public class FilterConfig implements Serializable, Cloneable {
 
 	public void setFilterClass(String filterClass) {
 		this.filterClass = filterClass;
-		this.instance = null;
 	}
 
 	public String getDescription() {
@@ -68,30 +63,6 @@ public class FilterConfig implements Serializable, Cloneable {
 
 	public void setDescription(String description) {
 		this.description = description;
-	}
-
-	@SuppressWarnings("unchecked")
-	public <T> MessageFilter<T> getInstance() {
-		if (instance == null && filterClass != null) {
-			try {
-				Class<?> clazz = Class.forName(filterClass);
-				instance = (MessageFilter<?>) clazz.getDeclaredConstructor().newInstance();
-			} catch (Exception e) {
-				throw new TradistaMessagingTechnicalException("Cannot instantiate filter class " + filterClass, e);
-			}
-		}
-		return (MessageFilter<T>) instance;
-	}
-
-	@Override
-	public FilterConfig clone() {
-		try {
-			FilterConfig clone = (FilterConfig) super.clone();
-			clone.instance = null;
-			return clone;
-		} catch (CloneNotSupportedException e) {
-			throw new AssertionError();
-		}
 	}
 
 	@Override

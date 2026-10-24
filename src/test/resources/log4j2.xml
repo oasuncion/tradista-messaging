@@ -6,6 +6,9 @@
 		</Console>
 	</Appenders>
 	<Loggers>
+		<Logger name="org.apache.activemq.audit.base" level="OFF" additivity="false" />
+		<Logger name="org.apache.activemq.audit.resource" level="OFF" additivity="false" />
+		<Logger name="org.apache.activemq.audit.message" level="OFF" additivity="false" />
 		<Root level="INFO">
 			<AppenderRef ref="Console" />
 		</Root>

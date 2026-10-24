@@ -1,5 +1,7 @@
 package finance.tradista.messaging.test;
 
+import java.io.Serializable;
+
 import finance.tradista.messaging.model.MessageFilter;
 
 /********************************************************************************
@@ -23,10 +25,10 @@ import finance.tradista.messaging.model.MessageFilter;
  * 
  * @author Olivier Asuncion
  */
-public class PrefixMessageFilter implements MessageFilter<Object> {
+public class PrefixMessageFilter implements MessageFilter<Serializable> {
 
 	@Override
-	public boolean accept(Object message) {
+	public boolean accept(Serializable message) {
 		if (message instanceof String str) {
 			return str.startsWith("EXPORT_");
 		}

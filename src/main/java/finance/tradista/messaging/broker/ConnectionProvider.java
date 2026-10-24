@@ -1,4 +1,4 @@
-package finance.tradista.messaging.jms;
+package finance.tradista.messaging.broker;
 
 import jakarta.jms.Connection;
 import jakarta.jms.ConnectionFactory;
@@ -23,23 +23,23 @@ import jakarta.jms.Session;
  ********************************************************************************/
 
 /**
- * Provider bridging Tradista Messaging with a standard Jakarta Messaging (JMS) broker.
+ * Provider interface supplying Jakarta Messaging Connections and resolving Destinations.
  * 
  * @author Olivier Asuncion
  */
-public interface JmsConnectionProvider {
+public interface ConnectionProvider extends AutoCloseable {
 
 	/**
-	 * Returns the underlying JMS ConnectionFactory.
+	 * Returns the underlying Jakarta Messaging ConnectionFactory.
 	 * 
 	 * @return ConnectionFactory
 	 */
 	ConnectionFactory getConnectionFactory();
 
 	/**
-	 * Returns a managed or shared JMS Connection.
+	 * Returns a managed or shared Jakarta Messaging Connection.
 	 * 
-	 * @return active JMS Connection
+	 * @return active Connection
 	 * @throws JMSException in case of error
 	 */
 	Connection getConnection() throws JMSException;
@@ -47,7 +47,7 @@ public interface JmsConnectionProvider {
 	/**
 	 * Resolves a Queue Destination from its name.
 	 * 
-	 * @param session JMS session
+	 * @param session Jakarta Messaging session
 	 * @param queueName Queue name
 	 * @return Destination Queue
 	 * @throws JMSException in case of error

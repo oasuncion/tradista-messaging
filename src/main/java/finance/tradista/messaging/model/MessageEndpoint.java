@@ -3,8 +3,6 @@ package finance.tradista.messaging.model;
 import java.io.Serializable;
 import java.util.Objects;
 
-import finance.tradista.messaging.exception.TradistaMessagingTechnicalException;
-
 /********************************************************************************
  * Copyright (c) 2026 Olivier Asuncion
  * 
@@ -24,11 +22,11 @@ import finance.tradista.messaging.exception.TradistaMessagingTechnicalException;
 /**
  * Message Endpoint representing a consumer/listener connected to a queue, with
  * optional filter and poller configuration, managing its lifecycle.
- * Pure domain model without persistence dependencies.
+ * Pure domain configuration model.
  * 
  * @author Olivier Asuncion
  */
-public class MessageEndpoint implements Serializable, Cloneable {
+public class MessageEndpoint implements Serializable {
 
 	private static final long serialVersionUID = 1L;
 
@@ -39,8 +37,6 @@ public class MessageEndpoint implements Serializable, Cloneable {
 	private String consumerClass;
 	private PollerConfig pollerConfig = new PollerConfig();
 	private LifecycleStatus status = LifecycleStatus.STOPPED;
-
-	private transient MessageConsumer<?> consumerInstance;
 
 	public MessageEndpoint() {
 	}
@@ -88,7 +84,6 @@ public class MessageEndpoint implements Serializable, Cloneable {
 
 	public void setConsumerClass(String consumerClass) {
 		this.consumerClass = consumerClass;
-		this.consumerInstance = null;
 	}
 
 	public PollerConfig getPollerConfig() {
@@ -105,40 +100,6 @@ public class MessageEndpoint implements Serializable, Cloneable {
 
 	public void setStatus(LifecycleStatus status) {
 		this.status = status;
-	}
-
-	@SuppressWarnings("unchecked")
-	public <T> MessageConsumer<T> getConsumerInstance() {
-		if (consumerInstance == null && consumerClass != null) {
-			try {
-				Class<?> clazz = Class.forName(consumerClass);
-				consumerInstance = (MessageConsumer<?>) clazz.getDeclaredConstructor().newInstance();
-			} catch (Exception e) {
-				throw new TradistaMessagingTechnicalException("Cannot instantiate consumer class " + consumerClass, e);
-			}
-		}
-		return (MessageConsumer<T>) consumerInstance;
-	}
-
-	public void setConsumerInstance(MessageConsumer<?> consumerInstance) {
-		this.consumerInstance = consumerInstance;
-		if (consumerInstance != null) {
-			this.consumerClass = consumerInstance.getClass().getName();
-		}
-	}
-
-	@Override
-	public MessageEndpoint clone() {
-		try {
-			MessageEndpoint clone = (MessageEndpoint) super.clone();
-			if (pollerConfig != null) {
-				clone.pollerConfig = pollerConfig.clone();
-			}
-			clone.consumerInstance = null;
-			return clone;
-		} catch (CloneNotSupportedException e) {
-			throw new AssertionError();
-		}
 	}
 
 	@Override

@@ -1,7 +1,11 @@
-package finance.tradista.messaging.jms;
+package finance.tradista.messaging.broker;
 
 import java.util.Objects;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import finance.tradista.messaging.exception.TradistaMessagingTechnicalException;
 import jakarta.jms.Connection;
 import jakarta.jms.ConnectionFactory;
 import jakarta.jms.Destination;
@@ -25,16 +29,18 @@ import jakarta.jms.Session;
  ********************************************************************************/
 
 /**
- * Standard implementation of JmsConnectionProvider backed by any Jakarta JMS ConnectionFactory.
+ * Standard implementation of ConnectionProvider backed by any Jakarta Messaging ConnectionFactory.
  * 
  * @author Olivier Asuncion
  */
-public class DefaultJmsConnectionProvider implements JmsConnectionProvider {
+public class DefaultConnectionProvider implements ConnectionProvider {
+
+	private static final Logger LOGGER = LoggerFactory.getLogger(DefaultConnectionProvider.class);
 
 	private final ConnectionFactory connectionFactory;
 	private Connection connection;
 
-	public DefaultJmsConnectionProvider(ConnectionFactory connectionFactory) {
+	public DefaultConnectionProvider(ConnectionFactory connectionFactory) {
 		this.connectionFactory = Objects.requireNonNull(connectionFactory, "ConnectionFactory cannot be null");
 	}
 
@@ -57,14 +63,17 @@ public class DefaultJmsConnectionProvider implements JmsConnectionProvider {
 		return session.createQueue(queueName);
 	}
 
+	@Override
 	public synchronized void close() {
 		if (connection != null) {
 			try {
 				connection.close();
 			} catch (JMSException e) {
-				// Ignore on close
+				LOGGER.error("Failed to close Jakarta Messaging connection: {}", e.getMessage(), e);
+				throw new TradistaMessagingTechnicalException("Failed to close connection: " + e.getMessage(), e);
+			} finally {
+				connection = null;
 			}
-			connection = null;
 		}
 	}
 }

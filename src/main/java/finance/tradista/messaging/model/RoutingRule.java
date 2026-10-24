@@ -21,11 +21,10 @@ import java.util.Objects;
 
 /**
  * Routing rule linking an event type to a subscribing destination queue.
- * Pure domain model without persistence dependencies.
  * 
  * @author Olivier Asuncion
  */
-public class RoutingRule implements Serializable, Cloneable {
+public class RoutingRule implements Serializable {
 
 	private static final long serialVersionUID = 1L;
 
@@ -64,15 +63,6 @@ public class RoutingRule implements Serializable, Cloneable {
 
 	public void setDestinationQueue(MessageQueue destinationQueue) {
 		this.destinationQueue = destinationQueue;
-	}
-
-	@Override
-	public RoutingRule clone() {
-		try {
-			return (RoutingRule) super.clone();
-		} catch (CloneNotSupportedException e) {
-			throw new AssertionError();
-		}
 	}
 
 	@Override

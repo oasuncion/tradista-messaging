@@ -1,8 +1,11 @@
 package finance.tradista.messaging.util;
 
 import finance.tradista.messaging.exception.TradistaMessagingBusinessException;
+import finance.tradista.messaging.exception.TradistaMessagingTechnicalException;
 import finance.tradista.messaging.model.FilterConfig;
+import finance.tradista.messaging.model.MessageConsumer;
 import finance.tradista.messaging.model.MessageEndpoint;
+import finance.tradista.messaging.model.MessageFilter;
 import finance.tradista.messaging.model.MessageQueue;
 import finance.tradista.messaging.model.MessageRouter;
 import finance.tradista.messaging.model.RoutingRule;
@@ -90,6 +93,36 @@ public final class TradistaMessagingUtil {
 			if (endpoint.getPollerConfig().getMaxMessagesPerPoll() <= 0) {
 				throw new TradistaMessagingBusinessException("Poller max messages per poll must be greater than 0.");
 			}
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	public static <T extends java.io.Serializable> MessageFilter<T> createFilterInstance(FilterConfig filterConfig) {
+		if (filterConfig == null || filterConfig.getFilterClass() == null
+				|| filterConfig.getFilterClass().trim().isEmpty()) {
+			return null;
+		}
+		try {
+			Class<?> clazz = Class.forName(filterConfig.getFilterClass());
+			return (MessageFilter<T>) clazz.getDeclaredConstructor().newInstance();
+		} catch (Exception e) {
+			throw new TradistaMessagingTechnicalException(
+					"Cannot instantiate filter class " + filterConfig.getFilterClass(), e);
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	public static <T extends java.io.Serializable> MessageConsumer<T> createConsumerInstance(MessageEndpoint endpoint) {
+		if (endpoint == null || endpoint.getConsumerClass() == null
+				|| endpoint.getConsumerClass().trim().isEmpty()) {
+			return null;
+		}
+		try {
+			Class<?> clazz = Class.forName(endpoint.getConsumerClass());
+			return (MessageConsumer<T>) clazz.getDeclaredConstructor().newInstance();
+		} catch (Exception e) {
+			throw new TradistaMessagingTechnicalException(
+					"Cannot instantiate consumer class " + endpoint.getConsumerClass(), e);
 		}
 	}
 }

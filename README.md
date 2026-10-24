@@ -30,16 +30,16 @@ Add the dependency to your `pom.xml`:
 
 ## How to Use Tradista Messaging
 
-The framework is operated via the static facade `MessagingManager`. It can operate both directly over an actual **Jakarta Messaging (JMS)** broker (e.g., ActiveMQ Artemis, WildFly JMS, etc.) and via in-memory queues.
+The framework is operated via the static facade `MessagingManager`. It can operate both directly over an actual **Jakarta Messaging** broker (e.g., ActiveMQ Artemis, WildFly Messaging, etc.) and via in-memory queues.
 
-### 1. Connecting to a Real Jakarta Messaging (JMS) Broker
+### 1. Connecting to a Real Jakarta Messaging Broker
 
 Supply any standard `jakarta.jms.ConnectionFactory` to Tradista Messaging:
 
 ```java
-// Example with ActiveMQ Artemis or any Jakarta JMS ConnectionFactory
+// Example with ActiveMQ Artemis or any Jakarta Messaging ConnectionFactory
 ConnectionFactory cf = new ActiveMQConnectionFactory("tcp://localhost:61616");
-MessagingManager.setJmsConnectionProvider(new DefaultJmsConnectionProvider(cf));
+MessagingManager.setConnectionProvider(new DefaultConnectionProvider(cf));
 ```
 
 ---
@@ -193,7 +193,7 @@ Place a `persistence.xml` file under `META-INF/persistence.xml` in your classpat
 ## Dependencies
 
 Tradista Messaging is built on modern Jakarta EE standards:
-- [Jakarta Messaging (JMS 3.1)](https://jakarta.ee/specifications/messaging/) for enterprise message brokering (Queue destinations, consumers, producers)
+- [Jakarta Messaging 3.1](https://jakarta.ee/specifications/messaging/) for enterprise message brokering (Queue destinations, consumers, producers)
 - [Jakarta Data](https://jakarta.ee/specifications/data/) for declarative repositories
 - [Jakarta Query](https://jakarta.ee/specifications/query/) for standardized query language definitions (`@Query`)
 - [Jakarta Persistence (JPA)](https://jakarta.ee/specifications/persistence/) for relational mapping

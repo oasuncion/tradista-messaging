@@ -19,11 +19,13 @@ import finance.tradista.messaging.model.FilterConfig;
 import finance.tradista.messaging.model.LifecycleStatus;
 import finance.tradista.messaging.model.Message;
 import finance.tradista.messaging.model.MessageEndpoint;
+import finance.tradista.messaging.model.MessageFilter;
 import finance.tradista.messaging.model.MessageQueue;
 import finance.tradista.messaging.model.MessageRouter;
 import finance.tradista.messaging.model.PollerConfig;
 import finance.tradista.messaging.test.CollectingMessageConsumer;
 import finance.tradista.messaging.test.PrefixMessageFilter;
+import finance.tradista.messaging.util.TradistaMessagingUtil;
 
 /********************************************************************************
  * Copyright (c) 2026 Olivier Asuncion
@@ -93,9 +95,10 @@ public class MessagingManagerTest {
 		FilterConfig fetched = MessagingManager.getFilterConfigByName("PREFIX_FILTER");
 		assertNotNull(fetched);
 		assertEquals(PrefixMessageFilter.class.getName(), fetched.getFilterClass());
-		assertNotNull(fetched.getInstance());
-		assertTrue(fetched.getInstance().accept("EXPORT_TRADE_123"));
-		assertFalse(fetched.getInstance().accept("IMPORT_TRADE_123"));
+		MessageFilter<String> filterInstance = TradistaMessagingUtil.createFilterInstance(fetched);
+		assertNotNull(filterInstance);
+		assertTrue(filterInstance.accept("EXPORT_TRADE_123"));
+		assertFalse(filterInstance.accept("IMPORT_TRADE_123"));
 	}
 
 	@Test

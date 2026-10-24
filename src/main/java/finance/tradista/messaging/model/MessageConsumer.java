@@ -1,5 +1,7 @@
 package finance.tradista.messaging.model;
 
+import java.io.Serializable;
+
 /********************************************************************************
  * Copyright (c) 2026 Olivier Asuncion
  * 
@@ -23,7 +25,7 @@ package finance.tradista.messaging.model;
  * @author Olivier Asuncion
  */
 @FunctionalInterface
-public interface MessageConsumer<T> {
+public interface MessageConsumer<T extends Serializable> {
 
 	/**
 	 * Consumes the received message.

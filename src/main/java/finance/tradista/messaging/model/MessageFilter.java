@@ -1,5 +1,7 @@
 package finance.tradista.messaging.model;
 
+import java.io.Serializable;
+
 /********************************************************************************
  * Copyright (c) 2026 Olivier Asuncion
  * 
@@ -23,7 +25,7 @@ package finance.tradista.messaging.model;
  * @author Olivier Asuncion
  */
 @FunctionalInterface
-public interface MessageFilter<T> {
+public interface MessageFilter<T extends Serializable> {
 
 	/**
 	 * Evaluates whether the given message or event matches this filter.

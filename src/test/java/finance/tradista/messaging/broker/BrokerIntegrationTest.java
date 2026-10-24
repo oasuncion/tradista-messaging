@@ -1,8 +1,6 @@
-package finance.tradista.messaging.jms;
+package finance.tradista.messaging.broker;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.concurrent.TimeUnit;
 
@@ -42,29 +40,30 @@ import finance.tradista.messaging.test.PrefixMessageFilter;
  * SPDX-License-Identifier: Apache-2.0
  ********************************************************************************/
 
-public class JmsIntegrationTest {
+public class BrokerIntegrationTest {
 
 	private static ActiveMQServer broker;
-	private static DefaultJmsConnectionProvider connectionProvider;
+	private static DefaultConnectionProvider connectionProvider;
 
 	@BeforeAll
 	static void startBroker() throws Exception {
 		ConfigurationImpl config = new ConfigurationImpl();
 		config.setPersistenceEnabled(false);
 		config.setSecurityEnabled(false);
+		config.setJMXManagementEnabled(false);
 		config.addAcceptorConfiguration("in-vm", "vm://0");
 
 		broker = ActiveMQServers.newActiveMQServer(config);
 		broker.start();
 
 		ActiveMQConnectionFactory cf = new ActiveMQConnectionFactory("vm://0");
-		connectionProvider = new DefaultJmsConnectionProvider(cf);
-		MessagingManager.setJmsConnectionProvider(connectionProvider);
+		connectionProvider = new DefaultConnectionProvider(cf);
+		MessagingManager.setConnectionProvider(connectionProvider);
 	}
 
 	@AfterAll
 	static void stopBroker() throws Exception {
-		MessagingManager.setJmsConnectionProvider(null);
+		MessagingManager.setConnectionProvider(null);
 		if (connectionProvider != null) {
 			connectionProvider.close();
 		}
@@ -79,44 +78,44 @@ public class JmsIntegrationTest {
 	}
 
 	@Test
-	@DisplayName("Test real JMS messaging with Router, Filter, and Endpoint Lifecycle")
-	void testRealJmsIntegration() throws Exception {
+	@DisplayName("Test real Jakarta Messaging broker integration with Router, Filter, and Endpoint Lifecycle")
+	void testRealBrokerIntegration() throws Exception {
 		// 1. Create Queues in DB
-		MessageQueue repoJmsQueue = new MessageQueue("JMS_REPO_QUEUE");
-		MessagingManager.saveQueue(repoJmsQueue);
+		MessageQueue repoQueue = new MessageQueue("BROKER_REPO_QUEUE");
+		MessagingManager.saveQueue(repoQueue);
 
-		MessageQueue fallbackJmsQueue = new MessageQueue("JMS_DEFAULT_QUEUE");
-		MessagingManager.saveQueue(fallbackJmsQueue);
+		MessageQueue fallbackQueue = new MessageQueue("BROKER_DEFAULT_QUEUE");
+		MessagingManager.saveQueue(fallbackQueue);
 
 		// 2. Create Filter in DB
-		FilterConfig filter = new FilterConfig("JMS_PREFIX_FILTER", PrefixMessageFilter.class.getName());
+		FilterConfig filter = new FilterConfig("BROKER_PREFIX_FILTER", PrefixMessageFilter.class.getName());
 		MessagingManager.saveFilterConfig(filter);
 
 		// 3. Create Router in DB
-		MessageRouter router = new MessageRouter("JMS_TRADE_ROUTER");
-		router.setDefaultOutputQueue(fallbackJmsQueue);
-		router.addSubscription("REPO_TRADE", repoJmsQueue);
+		MessageRouter router = new MessageRouter("BROKER_TRADE_ROUTER");
+		router.setDefaultOutputQueue(fallbackQueue);
+		router.addSubscription("REPO_TRADE", repoQueue);
 		MessagingManager.saveRouter(router);
 
 		// 4. Create Endpoint in DB
-		MessageEndpoint endpoint = new MessageEndpoint("JMS_REPO_ENDPOINT", repoJmsQueue);
+		MessageEndpoint endpoint = new MessageEndpoint("BROKER_REPO_ENDPOINT", repoQueue);
 		endpoint.setFilterConfig(filter);
 		endpoint.setConsumerClass(CollectingMessageConsumer.class.getName());
 		MessagingManager.saveEndpoint(endpoint);
 
 		// Initially STOPPED: Start the endpoint
-		MessagingManager.startEndpoint("JMS_REPO_ENDPOINT");
-		assertEquals(LifecycleStatus.RUNNING, MessagingManager.getEndpointByName("JMS_REPO_ENDPOINT").getStatus());
+		MessagingManager.startEndpoint("BROKER_REPO_ENDPOINT");
+		assertEquals(LifecycleStatus.RUNNING, MessagingManager.getEndpointByName("BROKER_REPO_ENDPOINT").getStatus());
 
-		// 5. Route messages through real JMS broker
+		// 5. Route messages through real broker
 		// Matching filter:
-		MessagingManager.route(router, new Message<>("EXPORT_TRADE_JMS_1"), "REPO_TRADE");
+		MessagingManager.route(router, new Message<>("EXPORT_TRADE_BROKER_1"), "REPO_TRADE");
 		// Rejected by filter:
-		MessagingManager.route(router, new Message<>("IGNORE_TRADE_JMS_2"), "REPO_TRADE");
+		MessagingManager.route(router, new Message<>("IGNORE_TRADE_BROKER_2"), "REPO_TRADE");
 		// Matching filter:
-		MessagingManager.route(router, new Message<>("EXPORT_TRADE_JMS_3"), "REPO_TRADE");
+		MessagingManager.route(router, new Message<>("EXPORT_TRADE_BROKER_3"), "REPO_TRADE");
 
-		// Wait briefly for asynchronous JMS listener delivery
+		// Wait briefly for asynchronous listener delivery
 		for (int i = 0; i < 20; i++) {
 			if (CollectingMessageConsumer.getReceived().size() >= 2) {
 				break;
@@ -124,17 +123,17 @@ public class JmsIntegrationTest {
 			TimeUnit.MILLISECONDS.sleep(100);
 		}
 
-		// Verify that exactly 2 messages were accepted by the filter and consumed asynchronously from JMS
+		// Verify that exactly 2 messages were accepted by the filter and consumed asynchronously
 		assertEquals(2, CollectingMessageConsumer.getReceived().size());
-		assertEquals("EXPORT_TRADE_JMS_1", CollectingMessageConsumer.getReceived().get(0).getPayload());
-		assertEquals("EXPORT_TRADE_JMS_3", CollectingMessageConsumer.getReceived().get(1).getPayload());
+		assertEquals("EXPORT_TRADE_BROKER_1", CollectingMessageConsumer.getReceived().get(0).getPayload());
+		assertEquals("EXPORT_TRADE_BROKER_3", CollectingMessageConsumer.getReceived().get(1).getPayload());
 
 		// Pause endpoint
-		MessagingManager.pauseEndpoint("JMS_REPO_ENDPOINT");
-		assertEquals(LifecycleStatus.PAUSED, MessagingManager.getEndpointByName("JMS_REPO_ENDPOINT").getStatus());
+		MessagingManager.pauseEndpoint("BROKER_REPO_ENDPOINT");
+		assertEquals(LifecycleStatus.PAUSED, MessagingManager.getEndpointByName("BROKER_REPO_ENDPOINT").getStatus());
 
 		// Stop endpoint
-		MessagingManager.stopEndpoint("JMS_REPO_ENDPOINT");
-		assertEquals(LifecycleStatus.STOPPED, MessagingManager.getEndpointByName("JMS_REPO_ENDPOINT").getStatus());
+		MessagingManager.stopEndpoint("BROKER_REPO_ENDPOINT");
+		assertEquals(LifecycleStatus.STOPPED, MessagingManager.getEndpointByName("BROKER_REPO_ENDPOINT").getStatus());
 	}
 }

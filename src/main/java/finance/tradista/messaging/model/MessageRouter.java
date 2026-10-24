@@ -29,7 +29,7 @@ import java.util.Set;
  * 
  * @author Olivier Asuncion
  */
-public class MessageRouter implements Serializable, Cloneable {
+public class MessageRouter implements Serializable {
 
 	private static final long serialVersionUID = 1L;
 
@@ -104,19 +104,6 @@ public class MessageRouter implements Serializable, Cloneable {
 			destinations.add(defaultOutputQueue);
 		}
 		return destinations;
-	}
-
-	@Override
-	public MessageRouter clone() {
-		try {
-			MessageRouter clone = (MessageRouter) super.clone();
-			if (rules != null) {
-				clone.rules = new HashSet<>(rules);
-			}
-			return clone;
-		} catch (CloneNotSupportedException e) {
-			throw new AssertionError();
-		}
 	}
 
 	@Override
