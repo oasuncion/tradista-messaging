@@ -170,12 +170,12 @@ Place a `persistence.xml` file under `META-INF/persistence.xml` in your classpat
 		name="tradista-messaging-persistence-unit"
 		transaction-type="RESOURCE_LOCAL">
 		<description>Persistence unit for Tradista Messaging.</description>
-		<class>finance.tradista.messaging.model.TradistaMessagingObject</class>
-		<class>finance.tradista.messaging.model.MessageQueue</class>
-		<class>finance.tradista.messaging.model.FilterConfig</class>
-		<class>finance.tradista.messaging.model.MessageRouter</class>
-		<class>finance.tradista.messaging.model.RoutingRule</class>
-		<class>finance.tradista.messaging.model.MessageEndpoint</class>
+		<class>finance.tradista.messaging.persistence.entity.BaseMessagingEntity</class>
+		<class>finance.tradista.messaging.persistence.entity.MessageQueueEntity</class>
+		<class>finance.tradista.messaging.persistence.entity.FilterConfigEntity</class>
+		<class>finance.tradista.messaging.persistence.entity.MessageRouterEntity</class>
+		<class>finance.tradista.messaging.persistence.entity.RoutingRuleEntity</class>
+		<class>finance.tradista.messaging.persistence.entity.MessageEndpointEntity</class>
 		<properties>
 			<property name="jakarta.persistence.jdbc.driver" value="org.h2.Driver" />
 			<property name="jakarta.persistence.jdbc.url" value="jdbc:h2:mem:tradistamessaging;DB_CLOSE_DELAY=-1" />
