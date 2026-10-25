@@ -24,6 +24,7 @@ import finance.tradista.messaging.model.MessageRouter;
 import finance.tradista.messaging.model.PollerConfig;
 import finance.tradista.messaging.service.MessagingManager;
 import finance.tradista.messaging.test.CollectingMessageConsumer;
+import finance.tradista.messaging.test.FailingOnceMessageConsumer;
 import finance.tradista.messaging.test.PrefixMessageFilter;
 
 /********************************************************************************
@@ -164,5 +165,27 @@ public class BrokerIntegrationTest {
 		// Stop poller endpoint
 		MessagingManager.stopEndpoint("BROKER_POLLER_ENDPOINT");
 		assertEquals(LifecycleStatus.STOPPED, MessagingManager.getEndpointByName("BROKER_POLLER_ENDPOINT").getStatus());
+
+		// 7. Test Rollback and Redelivery on failure (Zero Message Loss)
+		FailingOnceMessageConsumer.reset(2);
+		MessageQueue retryQueue = new MessageQueue("BROKER_RETRY_QUEUE");
+		MessagingManager.saveQueue(retryQueue);
+
+		MessageEndpoint retryEndpoint = new MessageEndpoint("BROKER_RETRY_ENDPOINT", retryQueue);
+		retryEndpoint.setPollerConfig(new PollerConfig(100L, 1));
+		retryEndpoint.setConsumerClass(FailingOnceMessageConsumer.class.getName());
+		MessagingManager.saveEndpoint(retryEndpoint);
+
+		MessagingManager.send("BROKER_RETRY_QUEUE", new Message<>("RETRY_PAYLOAD"));
+
+		// Start poller: first poll fails and triggers session.rollback(), second poll
+		// succeeds
+		MessagingManager.startEndpoint("BROKER_RETRY_ENDPOINT");
+
+		assertTrue(FailingOnceMessageConsumer.await(5, TimeUnit.SECONDS),
+				"Message should have been redelivered after rollback on failure");
+		assertEquals(2, FailingOnceMessageConsumer.getAttempts());
+
+		MessagingManager.stopEndpoint("BROKER_RETRY_ENDPOINT");
 	}
 }

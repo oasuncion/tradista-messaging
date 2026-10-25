@@ -1,6 +1,10 @@
 package finance.tradista.messaging.broker;
 
+import java.io.Serializable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,9 +39,8 @@ import jakarta.jms.Session;
 
 /**
  * Manages the live Jakarta Messaging Session and MessageConsumer corresponding
- * to a persisted MessageEndpoint. Controls the active/paused/stopped lifecycle
- * directly on the underlying consumer.
- * 
+ * to a persisted MessageEndpoint.
+ *
  * @author Olivier Asuncion
  */
 public class EndpointListenerContainer implements EndpointContainer {
@@ -46,74 +49,173 @@ public class EndpointListenerContainer implements EndpointContainer {
 
 	private final MessageEndpoint endpoint;
 	private final ConnectionProvider connectionProvider;
-
-	private Session session;
-	private jakarta.jms.MessageConsumer consumer;
-
 	private final AtomicBoolean paused = new AtomicBoolean(false);
 	private final AtomicBoolean running = new AtomicBoolean(false);
+	private final ReentrantLock lifecycleLock = new ReentrantLock();
+
+	// Accessed under lifecycleLock.
+	private Session session;
+	private jakarta.jms.MessageConsumer consumer;
 
 	public EndpointListenerContainer(MessageEndpoint endpoint, ConnectionProvider connectionProvider) {
 		this.endpoint = endpoint;
 		this.connectionProvider = connectionProvider;
 	}
 
-	public synchronized void start() throws JMSException {
-		if (running.get() && !paused.get()) {
-			return;
-		}
+	@Override
+	public void start() throws JMSException {
+		lifecycleLock.lock();
+		try {
+			if (running.get() && !paused.get()) {
+				return;
+			}
 
-		if (paused.get()) {
+			// Recreate both resources on resume; pause() closes the consumer and
+			// a fresh session avoids leaking/reusing stale provider state.
+			closeResources();
 			paused.set(false);
-			LOGGER.info("Resumed listener container for endpoint {}", endpoint.getName());
-			return;
+			try {
+				initResources();
+				running.set(true);
+				LOGGER.info("Started/resumed listener container for endpoint {}", endpoint.getName());
+			} catch (Exception e) {
+				closeResources();
+				running.set(false);
+				paused.set(false);
+				throw asJmsException("Failed to start listener container for endpoint " + endpoint.getName(), e);
+			}
+		} finally {
+			lifecycleLock.unlock();
 		}
-
-		Connection connection = connectionProvider.getConnection();
-		session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
-		Destination destination = connectionProvider.resolveQueue(session, endpoint.getQueue().getName());
-		consumer = session.createConsumer(destination);
-
-		consumer.setMessageListener(new DelegatingMessageListener<>(endpoint, paused));
-		running.set(true);
-		paused.set(false);
-		LOGGER.info("Started listener container for endpoint {}", endpoint.getName());
 	}
 
-	public synchronized void pause() {
-		paused.set(true);
-		LOGGER.info("Paused listener container for endpoint {}", endpoint.getName());
+	private void initResources() throws JMSException {
+		Session localSession = null;
+		jakarta.jms.MessageConsumer localConsumer = null;
+		try {
+			MessageFilter<Serializable> filter = TradistaMessagingUtil.createFilterInstance(endpoint.getFilterConfig());
+			MessageConsumer<Serializable> applicationConsumer = TradistaMessagingUtil.createConsumerInstance(endpoint);
+			if (applicationConsumer == null) {
+				throw new IllegalStateException(
+						"MessageConsumer could not be instantiated for endpoint " + endpoint.getName());
+			}
+
+			Connection connection = connectionProvider.getConnection();
+			localSession = connection.createSession(true, Session.SESSION_TRANSACTED);
+			Destination destination = connectionProvider.resolveQueue(localSession, endpoint.getQueue().getName());
+			localConsumer = localSession.createConsumer(destination);
+
+			DelegatingMessageListener<Serializable> listener = new DelegatingMessageListener<>(endpoint, localSession,
+					filter, applicationConsumer, paused, this::onSessionCompromisedAsync);
+			localConsumer.setMessageListener(listener);
+
+			// Publish only after all initialization steps succeed.
+			session = localSession;
+			consumer = localConsumer;
+		} catch (Exception e) {
+			closeQuietly(localConsumer, localSession);
+			throw asJmsException("Failed to initialize listener resources for endpoint " + endpoint.getName(), e);
+		}
 	}
 
-	public synchronized void stop() {
-		running.set(false);
-		paused.set(false);
-		closeResources();
-		LOGGER.info("Stopped listener container for endpoint {}", endpoint.getName());
+	/**
+	 * Always schedule cleanup away from the JMS delivery thread. The identity check
+	 * and state transition happen together under lifecycleLock, preventing a stale
+	 * callback from stopping a newer container run.
+	 */
+	private void onSessionCompromisedAsync(Session compromisedSession) {
+		CompletableFuture.runAsync(() -> {
+			lifecycleLock.lock();
+			try {
+				if (session != compromisedSession) {
+					return;
+				}
+				LOGGER.warn("Session compromised for endpoint {}; stopping container resources.", endpoint.getName());
+				running.set(false);
+				paused.set(false);
+				closeResources();
+			} finally {
+				lifecycleLock.unlock();
+			}
+		}).exceptionally(e -> {
+			LOGGER.error("Asynchronous cleanup failed for endpoint {}", endpoint.getName(), e);
+			return null;
+		});
 	}
 
 	@Override
-	public synchronized void close() {
+	public void pause() {
+		lifecycleLock.lock();
+		try {
+			if (!running.get() || paused.get()) {
+				return;
+			}
+			paused.set(true);
+			if (consumer != null) {
+				try {
+					consumer.close();
+				} catch (JMSException e) {
+					LOGGER.warn("Error closing consumer during pause for endpoint {}", endpoint.getName(), e);
+				} finally {
+					consumer = null;
+				}
+			}
+			LOGGER.info("Paused listener container for endpoint {}", endpoint.getName());
+		} finally {
+			lifecycleLock.unlock();
+		}
+	}
+
+	@Override
+	public void stop() {
+		lifecycleLock.lock();
+		try {
+			running.set(false);
+			paused.set(false);
+			closeResources();
+			LOGGER.info("Stopped listener container for endpoint {}", endpoint.getName());
+		} finally {
+			lifecycleLock.unlock();
+		}
+	}
+
+	@Override
+	public void close() {
 		stop();
 	}
 
 	private void closeResources() {
-		if (consumer != null) {
+		jakarta.jms.MessageConsumer oldConsumer = consumer;
+		Session oldSession = session;
+		consumer = null;
+		session = null;
+		closeQuietly(oldConsumer, oldSession);
+	}
+
+	private void closeQuietly(jakarta.jms.MessageConsumer oldConsumer, Session oldSession) {
+		if (oldConsumer != null) {
 			try {
-				consumer.close();
+				oldConsumer.close();
 			} catch (JMSException e) {
-				LOGGER.warn("Error closing consumer for endpoint {}: {}", endpoint.getName(), e.getMessage());
+				LOGGER.warn("Error closing consumer for endpoint {}", endpoint.getName(), e);
 			}
-			consumer = null;
 		}
-		if (session != null) {
+		if (oldSession != null) {
 			try {
-				session.close();
+				oldSession.close();
 			} catch (JMSException e) {
-				LOGGER.warn("Error closing session for endpoint {}: {}", endpoint.getName(), e.getMessage());
+				LOGGER.warn("Error closing session for endpoint {}", endpoint.getName(), e);
 			}
-			session = null;
 		}
+	}
+
+	private static JMSException asJmsException(String message, Exception cause) {
+		if (cause instanceof JMSException jmsException) {
+			return jmsException;
+		}
+		JMSException exception = new JMSException(message + ": " + cause.getMessage());
+		exception.initCause(cause);
+		return exception;
 	}
 
 	public boolean isRunning() {
@@ -124,49 +226,79 @@ public class EndpointListenerContainer implements EndpointContainer {
 		return paused.get();
 	}
 
+	@Override
 	public LifecycleStatus getStatus() {
 		if (!running.get()) {
 			return LifecycleStatus.STOPPED;
 		}
-		if (paused.get()) {
-			return LifecycleStatus.PAUSED;
-		}
-		return LifecycleStatus.RUNNING;
+		return paused.get() ? LifecycleStatus.PAUSED : LifecycleStatus.RUNNING;
 	}
 
-	private static class DelegatingMessageListener<T extends java.io.Serializable> implements MessageListener {
+	private static class DelegatingMessageListener<T extends Serializable> implements MessageListener {
 
 		private final MessageEndpoint endpoint;
+		private final Session session;
+		private final MessageFilter<T> filter;
+		private final MessageConsumer<T> consumer;
 		private final AtomicBoolean paused;
+		private final Consumer<Session> sessionCompromisedCallback;
 
-		public DelegatingMessageListener(MessageEndpoint endpoint, AtomicBoolean paused) {
+		private DelegatingMessageListener(MessageEndpoint endpoint, Session session, MessageFilter<T> filter,
+				MessageConsumer<T> consumer, AtomicBoolean paused, Consumer<Session> sessionCompromisedCallback) {
 			this.endpoint = endpoint;
+			this.session = session;
+			this.filter = filter;
+			this.consumer = consumer;
 			this.paused = paused;
+			this.sessionCompromisedCallback = sessionCompromisedCallback;
 		}
 
 		@Override
-		public void onMessage(jakarta.jms.Message message) {
+		public void onMessage(jakarta.jms.Message brokerMessage) {
 			if (paused.get()) {
-				LOGGER.debug("Message ignored because endpoint {} is paused.", endpoint.getName());
+				LOGGER.debug("Message received while endpoint {} is paused; rolling back.", endpoint.getName());
+				rollbackSession();
 				return;
 			}
 
 			try {
-				Message<T> msg = MessageConverter.fromBrokerMessage(message);
-				if (msg == null) {
-					return;
-				}
-
-				MessageFilter<T> filter = TradistaMessagingUtil.createFilterInstance(endpoint.getFilterConfig());
-
-				if (filter == null || filter.accept(msg.getPayload())) {
-					MessageConsumer<T> consumer = TradistaMessagingUtil.createConsumerInstance(endpoint);
-					if (consumer != null) {
-						consumer.onMessage(msg);
-					}
+				Message<T> message = MessageConverter.fromBrokerMessage(brokerMessage);
+				if (message != null && (filter == null || filter.accept(message.getPayload()))) {
+					consumer.onMessage(message);
 				}
 			} catch (Exception e) {
-				LOGGER.error("Error processing message for endpoint {}: {}", endpoint.getName(), e.getMessage(), e);
+				LOGGER.error("Application message processing failed for endpoint {}.", endpoint.getName(), e);
+				rollbackSession();
+				return;
+			}
+
+			try {
+				session.commit();
+			} catch (JMSException commitException) {
+				LOGGER.error("Commit failed for endpoint {}; transaction outcome may be uncertain. "
+						+ "Invalidating session.", endpoint.getName(), commitException);
+				try {
+					session.rollback();
+				} catch (JMSException rollbackException) {
+					LOGGER.warn("Rollback after failed commit also failed for endpoint {}.", endpoint.getName(),
+							rollbackException);
+				}
+				invalidateSession();
+			}
+		}
+
+		private void rollbackSession() {
+			try {
+				session.rollback();
+			} catch (JMSException e) {
+				LOGGER.error("Rollback failed for endpoint {}; invalidating session.", endpoint.getName(), e);
+				invalidateSession();
+			}
+		}
+
+		private void invalidateSession() {
+			if (sessionCompromisedCallback != null) {
+				sessionCompromisedCallback.accept(session);
 			}
 		}
 	}
