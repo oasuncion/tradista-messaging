@@ -22,7 +22,8 @@ import jakarta.persistence.EntityManagerFactory;
  ********************************************************************************/
 
 /**
- * Factory providing Jakarta Data repositories generated at compile-time by Hibernate.
+ * Factory providing Jakarta Data repositories generated at compile-time by
+ * Hibernate.
  * 
  * @author Olivier Asuncion
  */

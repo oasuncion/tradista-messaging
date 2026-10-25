@@ -24,9 +24,9 @@ import jakarta.jms.Queue;
  ********************************************************************************/
 
 /**
- * Message Queue representing a point-to-point destination.
- * Implements jakarta.jms.Queue to natively integrate with Jakarta Messaging.
- * Pure domain model without persistence dependencies.
+ * Message Queue representing a point-to-point destination. Implements
+ * jakarta.jms.Queue to natively integrate with Jakarta Messaging. Pure domain
+ * model without persistence dependencies.
  * 
  * @author Olivier Asuncion
  */

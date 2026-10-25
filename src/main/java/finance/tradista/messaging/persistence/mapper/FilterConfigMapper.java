@@ -20,7 +20,8 @@ import finance.tradista.messaging.persistence.entity.FilterConfigEntity;
  ********************************************************************************/
 
 /**
- * Mapper converting between domain FilterConfig and persistence FilterConfigEntity.
+ * Mapper converting between domain FilterConfig and persistence
+ * FilterConfigEntity.
  * 
  * @author Olivier Asuncion
  */

@@ -34,12 +34,13 @@ import jakarta.jms.Session;
  ********************************************************************************/
 
 /**
- * Manages the live Jakarta Messaging Session and MessageConsumer corresponding to a persisted MessageEndpoint.
- * Controls the active/paused/stopped lifecycle directly on the underlying consumer.
+ * Manages the live Jakarta Messaging Session and MessageConsumer corresponding
+ * to a persisted MessageEndpoint. Controls the active/paused/stopped lifecycle
+ * directly on the underlying consumer.
  * 
  * @author Olivier Asuncion
  */
-public class EndpointListenerContainer implements AutoCloseable {
+public class EndpointListenerContainer implements EndpointContainer {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(EndpointListenerContainer.class);
 

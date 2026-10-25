@@ -1,6 +1,7 @@
 package finance.tradista.messaging.broker;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.concurrent.TimeUnit;
 
@@ -20,6 +21,7 @@ import finance.tradista.messaging.model.Message;
 import finance.tradista.messaging.model.MessageEndpoint;
 import finance.tradista.messaging.model.MessageQueue;
 import finance.tradista.messaging.model.MessageRouter;
+import finance.tradista.messaging.model.PollerConfig;
 import finance.tradista.messaging.service.MessagingManager;
 import finance.tradista.messaging.test.CollectingMessageConsumer;
 import finance.tradista.messaging.test.PrefixMessageFilter;
@@ -107,23 +109,22 @@ public class BrokerIntegrationTest {
 		MessagingManager.startEndpoint("BROKER_REPO_ENDPOINT");
 		assertEquals(LifecycleStatus.RUNNING, MessagingManager.getEndpointByName("BROKER_REPO_ENDPOINT").getStatus());
 
-		// 5. Route messages through real broker
+		// 5. Publish events through real broker
+		CollectingMessageConsumer.resetLatch(2);
+
 		// Matching filter:
-		MessagingManager.route(router, new Message<>("EXPORT_TRADE_BROKER_1"), "REPO_TRADE");
+		MessagingManager.publishEvent("BROKER_TRADE_ROUTER", "REPO_TRADE", new Message<>("EXPORT_TRADE_BROKER_1"));
 		// Rejected by filter:
-		MessagingManager.route(router, new Message<>("IGNORE_TRADE_BROKER_2"), "REPO_TRADE");
+		MessagingManager.publishEvent("BROKER_TRADE_ROUTER", "REPO_TRADE", new Message<>("IGNORE_TRADE_BROKER_2"));
 		// Matching filter:
-		MessagingManager.route(router, new Message<>("EXPORT_TRADE_BROKER_3"), "REPO_TRADE");
+		MessagingManager.publishEvent("BROKER_TRADE_ROUTER", "REPO_TRADE", new Message<>("EXPORT_TRADE_BROKER_3"));
 
-		// Wait briefly for asynchronous listener delivery
-		for (int i = 0; i < 20; i++) {
-			if (CollectingMessageConsumer.getReceived().size() >= 2) {
-				break;
-			}
-			TimeUnit.MILLISECONDS.sleep(100);
-		}
+		// Wait deterministically for asynchronous listener delivery
+		assertTrue(CollectingMessageConsumer.await(5, TimeUnit.SECONDS),
+				"Expected 2 messages to be delivered within 5 seconds");
 
-		// Verify that exactly 2 messages were accepted by the filter and consumed asynchronously
+		// Verify that exactly 2 messages were accepted by the filter and consumed
+		// asynchronously
 		assertEquals(2, CollectingMessageConsumer.getReceived().size());
 		assertEquals("EXPORT_TRADE_BROKER_1", CollectingMessageConsumer.getReceived().get(0).getPayload());
 		assertEquals("EXPORT_TRADE_BROKER_3", CollectingMessageConsumer.getReceived().get(1).getPayload());
@@ -135,5 +136,33 @@ public class BrokerIntegrationTest {
 		// Stop endpoint
 		MessagingManager.stopEndpoint("BROKER_REPO_ENDPOINT");
 		assertEquals(LifecycleStatus.STOPPED, MessagingManager.getEndpointByName("BROKER_REPO_ENDPOINT").getStatus());
+
+		// 6. Test Poller Endpoint on real broker
+		CollectingMessageConsumer.clear();
+		CollectingMessageConsumer.resetLatch(1);
+
+		MessageQueue pollerQueue = new MessageQueue("BROKER_POLLER_QUEUE");
+		MessagingManager.saveQueue(pollerQueue);
+
+		MessageEndpoint pollerEndpoint = new MessageEndpoint("BROKER_POLLER_ENDPOINT", pollerQueue);
+		pollerEndpoint.setPollerConfig(new PollerConfig(100L, 5)); // polls every 100ms
+		pollerEndpoint.setConsumerClass(CollectingMessageConsumer.class.getName());
+		MessagingManager.saveEndpoint(pollerEndpoint);
+
+		// Send message before starting poller
+		MessagingManager.send("BROKER_POLLER_QUEUE", new Message<>("POLLER_PAYLOAD_1"));
+
+		// Start poller: it will periodically drain the queue
+		MessagingManager.startEndpoint("BROKER_POLLER_ENDPOINT");
+		assertEquals(LifecycleStatus.RUNNING, MessagingManager.getEndpointByName("BROKER_POLLER_ENDPOINT").getStatus());
+
+		assertTrue(CollectingMessageConsumer.await(5, TimeUnit.SECONDS),
+				"Expected 1 polled message to be delivered within 5 seconds");
+		assertEquals(1, CollectingMessageConsumer.getReceived().size());
+		assertEquals("POLLER_PAYLOAD_1", CollectingMessageConsumer.getReceived().get(0).getPayload());
+
+		// Stop poller endpoint
+		MessagingManager.stopEndpoint("BROKER_POLLER_ENDPOINT");
+		assertEquals(LifecycleStatus.STOPPED, MessagingManager.getEndpointByName("BROKER_POLLER_ENDPOINT").getStatus());
 	}
 }

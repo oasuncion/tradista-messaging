@@ -4,6 +4,8 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import finance.tradista.messaging.model.Message;
 import finance.tradista.messaging.model.MessageConsumer;
@@ -25,17 +27,30 @@ import finance.tradista.messaging.model.MessageConsumer;
  ********************************************************************************/
 
 /**
- * Test consumer collecting consumed messages in a static list for test assertions.
+ * Test consumer collecting consumed messages in a static list for test
+ * assertions.
  * 
  * @author Olivier Asuncion
  */
 public class CollectingMessageConsumer implements MessageConsumer<Serializable> {
 
 	private static final List<Message<Serializable>> RECEIVED = Collections.synchronizedList(new ArrayList<>());
+	private static volatile CountDownLatch latch;
+
+	public static void resetLatch(int count) {
+		latch = new CountDownLatch(count);
+	}
+
+	public static boolean await(long timeout, TimeUnit unit) throws InterruptedException {
+		return latch != null && latch.await(timeout, unit);
+	}
 
 	@Override
 	public void onMessage(Message<Serializable> message) {
 		RECEIVED.add(message);
+		if (latch != null) {
+			latch.countDown();
+		}
 	}
 
 	public static List<Message<Serializable>> getReceived() {

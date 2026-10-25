@@ -58,7 +58,7 @@ public class MessageEndpointEntity extends BaseMessagingEntity {
 	private String consumerClass;
 
 	@Embedded
-	private PollerConfigEmbeddable pollerConfig = new PollerConfigEmbeddable();
+	private PollerConfigEmbeddable pollerConfig;
 
 	@Enumerated(EnumType.STRING)
 	@Column(name = "STATUS", length = 20, nullable = false)

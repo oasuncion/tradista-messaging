@@ -24,8 +24,9 @@ import java.util.Set;
  ********************************************************************************/
 
 /**
- * Event Router configuring the dispatching of events by event type to subscribing queues (1-to-N).
- * Pure domain model without persistence dependencies.
+ * Event Router configuring the dispatching of events by event type to
+ * subscribing queues (1-to-N). Pure domain model without persistence
+ * dependencies.
  * 
  * @author Olivier Asuncion
  */
@@ -84,7 +85,8 @@ public class MessageRouter implements Serializable {
 
 	/**
 	 * Resolves all destination queues subscribed to the given event type (1-to-N).
-	 * If no queue is subscribed and a default queue is defined, returns the default queue.
+	 * If no queue is subscribed and a default queue is defined, returns the default
+	 * queue.
 	 *
 	 * @param eventType the type of event
 	 * @return list of subscribing destination queues

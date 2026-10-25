@@ -7,22 +7,22 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.hibernate.StatelessSession;
 import org.hibernate.Transaction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import finance.tradista.messaging.broker.ConnectionProvider;
+import finance.tradista.messaging.broker.EndpointContainer;
+import finance.tradista.messaging.broker.EndpointListenerContainer;
+import finance.tradista.messaging.broker.EndpointPollerContainer;
+import finance.tradista.messaging.broker.MessageConverter;
 import finance.tradista.messaging.exception.TradistaMessagingBusinessException;
 import finance.tradista.messaging.exception.TradistaMessagingTechnicalException;
-import finance.tradista.messaging.broker.ConnectionProvider;
-import finance.tradista.messaging.broker.EndpointListenerContainer;
-import finance.tradista.messaging.broker.MessageConverter;
 import finance.tradista.messaging.model.FilterConfig;
 import finance.tradista.messaging.model.LifecycleStatus;
 import finance.tradista.messaging.model.Message;
-import finance.tradista.messaging.model.MessageConsumer;
 import finance.tradista.messaging.model.MessageEndpoint;
-import finance.tradista.messaging.model.MessageFilter;
 import finance.tradista.messaging.model.MessageQueue;
 import finance.tradista.messaging.model.MessageRouter;
 import finance.tradista.messaging.model.RoutingRule;
@@ -76,7 +76,7 @@ public final class MessagingManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(MessagingManager.class);
 
 	private static final Map<String, MessageQueue> RUNTIME_QUEUES = new ConcurrentHashMap<>();
-	private static final Map<String, EndpointListenerContainer> BROKER_CONTAINERS = new ConcurrentHashMap<>();
+	private static final Map<String, EndpointContainer> BROKER_CONTAINERS = new ConcurrentHashMap<>();
 
 	private static EntityManagerFactory entityManagerFactory;
 	private static ConnectionProvider connectionProvider;
@@ -426,17 +426,21 @@ public final class MessagingManager {
 		final MessageEndpoint finalEndpoint = endpoint;
 		if (connectionProvider != null) {
 			try {
-				EndpointListenerContainer container = BROKER_CONTAINERS.computeIfAbsent(name,
-						k -> new EndpointListenerContainer(finalEndpoint, connectionProvider));
+				EndpointContainer container = BROKER_CONTAINERS.computeIfAbsent(name, _ -> {
+					if (finalEndpoint.getPollerConfig() != null) {
+						return new EndpointPollerContainer(finalEndpoint, connectionProvider);
+					}
+					return new EndpointListenerContainer(finalEndpoint, connectionProvider);
+				});
 				switch (status) {
 				case RUNNING -> container.start();
 				case PAUSED -> container.pause();
 				case STOPPED -> container.stop();
 				}
 			} catch (Exception e) {
-				LOGGER.error("Failed to update listener container status for endpoint {}: {}", name, e.getMessage(), e);
-				throw new TradistaMessagingTechnicalException(
-						"Failed to update listener container status for endpoint: " + name, e);
+				LOGGER.error("Failed to update container status for endpoint {}: {}", name, e.getMessage(), e);
+				throw new TradistaMessagingTechnicalException("Failed to update container status for endpoint: " + name,
+						e);
 			}
 		}
 
@@ -489,7 +493,7 @@ public final class MessagingManager {
 		return (Message<T>) queue.getRuntimeQueue().poll();
 	}
 
-	public static <T extends Serializable> void route(MessageRouter router, Message<T> message, String eventType) {
+	private static <T extends Serializable> void route(MessageRouter router, Message<T> message, String eventType) {
 		if (router == null || message == null) {
 			return;
 		}
@@ -506,33 +510,5 @@ public final class MessagingManager {
 			throw new TradistaMessagingBusinessException(String.format("Router '%s' does not exist.", routerName));
 		}
 		route(router, message, eventType);
-	}
-
-	public static <T extends Serializable> int pollEndpoint(String endpointName) {
-		MessageEndpoint endpoint = getEndpointByName(endpointName);
-		if (endpoint == null || endpoint.getStatus() != LifecycleStatus.RUNNING) {
-			return 0;
-		}
-
-		int maxPoll = endpoint.getPollerConfig() != null ? endpoint.getPollerConfig().getMaxMessagesPerPoll() : 10;
-		MessageConsumer<T> consumer = TradistaMessagingUtil.createConsumerInstance(endpoint);
-		if (consumer == null) {
-			return 0;
-		}
-
-		MessageFilter<T> filter = TradistaMessagingUtil.createFilterInstance(endpoint.getFilterConfig());
-
-		int processed = 0;
-		for (int i = 0; i < maxPoll; i++) {
-			Message<T> msg = receive(endpoint.getQueue().getName());
-			if (msg == null) {
-				break;
-			}
-			if (filter == null || filter.accept(msg.getPayload())) {
-				consumer.onMessage(msg);
-				processed++;
-			}
-		}
-		return processed;
 	}
 }

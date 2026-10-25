@@ -22,7 +22,5 @@ package finance.tradista.messaging.model;
  * @author Olivier Asuncion
  */
 public enum LifecycleStatus {
-	STOPPED,
-	RUNNING,
-	PAUSED
+	STOPPED, RUNNING, PAUSED
 }

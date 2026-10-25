@@ -38,8 +38,8 @@ public final class MessageConverter {
 	private MessageConverter() {
 	}
 
-	public static <T extends Serializable> jakarta.jms.Message toBrokerMessage(Session session, Message<T> message, String eventType)
-			throws JMSException {
+	public static <T extends Serializable> jakarta.jms.Message toBrokerMessage(Session session, Message<T> message,
+			String eventType) throws JMSException {
 		jakarta.jms.Message brokerMessage;
 		T payload = message.getPayload();
 		if (payload instanceof String str) {
@@ -67,7 +67,8 @@ public final class MessageConverter {
 	}
 
 	@SuppressWarnings("unchecked")
-	public static <T extends Serializable> Message<T> fromBrokerMessage(jakarta.jms.Message brokerMessage) throws JMSException {
+	public static <T extends Serializable> Message<T> fromBrokerMessage(jakarta.jms.Message brokerMessage)
+			throws JMSException {
 		if (brokerMessage == null) {
 			return null;
 		}

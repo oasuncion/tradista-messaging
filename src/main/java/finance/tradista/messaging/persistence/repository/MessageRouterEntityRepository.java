@@ -31,7 +31,8 @@ import jakarta.data.repository.Update;
  ********************************************************************************/
 
 /**
- * Jakarta Data Repository for MessageRouterEntity using Jakarta Query expressions.
+ * Jakarta Data Repository for MessageRouterEntity using Jakarta Query
+ * expressions.
  * 
  * @author Olivier Asuncion
  */
@@ -51,13 +52,15 @@ public interface MessageRouterEntityRepository extends DataRepository<MessageRou
 	Optional<MessageRouterEntity> findById(Long id);
 
 	/**
-	 * Jakarta Query expression to find a MessageRouterEntity by its name with rules fetched.
+	 * Jakarta Query expression to find a MessageRouterEntity by its name with rules
+	 * fetched.
 	 */
 	@Query("SELECT r FROM MessageRouterEntity r LEFT JOIN FETCH r.rules WHERE r.name = :name")
 	Optional<MessageRouterEntity> findByName(@Param("name") String name);
 
 	/**
-	 * Jakarta Query expression returning all routers ordered by name with rules fetched.
+	 * Jakarta Query expression returning all routers ordered by name with rules
+	 * fetched.
 	 */
 	@Query("SELECT DISTINCT r FROM MessageRouterEntity r LEFT JOIN FETCH r.rules ORDER BY r.name ASC")
 	List<MessageRouterEntity> findAllOrdered();

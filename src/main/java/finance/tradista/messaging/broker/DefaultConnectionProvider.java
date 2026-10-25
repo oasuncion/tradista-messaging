@@ -29,7 +29,8 @@ import jakarta.jms.Session;
  ********************************************************************************/
 
 /**
- * Standard implementation of ConnectionProvider backed by any Jakarta Messaging ConnectionFactory.
+ * Standard implementation of ConnectionProvider backed by any Jakarta Messaging
+ * ConnectionFactory.
  * 
  * @author Olivier Asuncion
  */

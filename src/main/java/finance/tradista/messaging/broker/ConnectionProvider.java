@@ -23,7 +23,8 @@ import jakarta.jms.Session;
  ********************************************************************************/
 
 /**
- * Provider interface supplying Jakarta Messaging Connections and resolving Destinations.
+ * Provider interface supplying Jakarta Messaging Connections and resolving
+ * Destinations.
  * 
  * @author Olivier Asuncion
  */
@@ -47,7 +48,7 @@ public interface ConnectionProvider extends AutoCloseable {
 	/**
 	 * Resolves a Queue Destination from its name.
 	 * 
-	 * @param session Jakarta Messaging session
+	 * @param session   Jakarta Messaging session
 	 * @param queueName Queue name
 	 * @return Destination Queue
 	 * @throws JMSException in case of error

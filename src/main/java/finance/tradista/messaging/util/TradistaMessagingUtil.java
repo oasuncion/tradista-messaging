@@ -113,8 +113,7 @@ public final class TradistaMessagingUtil {
 
 	@SuppressWarnings("unchecked")
 	public static <T extends java.io.Serializable> MessageConsumer<T> createConsumerInstance(MessageEndpoint endpoint) {
-		if (endpoint == null || endpoint.getConsumerClass() == null
-				|| endpoint.getConsumerClass().trim().isEmpty()) {
+		if (endpoint == null || endpoint.getConsumerClass() == null || endpoint.getConsumerClass().trim().isEmpty()) {
 			return null;
 		}
 		try {

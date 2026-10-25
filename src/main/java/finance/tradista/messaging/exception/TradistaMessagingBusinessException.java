@@ -17,7 +17,8 @@ package finance.tradista.messaging.exception;
  ********************************************************************************/
 
 /**
- * Exception thrown when a business rule or validation fails in Tradista Messaging.
+ * Exception thrown when a business rule or validation fails in Tradista
+ * Messaging.
  * 
  * @author Olivier Asuncion
  */

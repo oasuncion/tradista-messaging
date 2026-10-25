@@ -20,8 +20,8 @@ import java.util.Objects;
  ********************************************************************************/
 
 /**
- * Configuration for poller endpoints.
- * Pure domain model without persistence dependencies.
+ * Configuration for poller endpoints. Pure domain model without persistence
+ * dependencies.
  * 
  * @author Olivier Asuncion
  */

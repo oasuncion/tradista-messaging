@@ -26,7 +26,8 @@ import finance.tradista.messaging.persistence.entity.RoutingRuleEntity;
  ********************************************************************************/
 
 /**
- * Mapper converting between domain MessageRouter and persistence MessageRouterEntity.
+ * Mapper converting between domain MessageRouter and persistence
+ * MessageRouterEntity.
  * 
  * @author Olivier Asuncion
  */

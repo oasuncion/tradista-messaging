@@ -20,8 +20,8 @@ import java.util.Objects;
  ********************************************************************************/
 
 /**
- * Filter definition specifying the filter name and implementing class.
- * Pure domain configuration model.
+ * Filter definition specifying the filter name and implementing class. Pure
+ * domain configuration model.
  * 
  * @author Olivier Asuncion
  */

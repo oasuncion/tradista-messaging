@@ -1,14 +1,10 @@
 package finance.tradista.messaging.service;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -115,7 +111,8 @@ public class MessagingManagerTest {
 
 		MessageRouter router = new MessageRouter("TRADE_EVENT_ROUTER");
 		router.setDefaultOutputQueue(defaultQueue);
-		// 1-to-N subscriptions: REPO_TRADE dispatched to both FIX_QUEUE and TRANSFER_QUEUE
+		// 1-to-N subscriptions: REPO_TRADE dispatched to both FIX_QUEUE and
+		// TRANSFER_QUEUE
 		router.addSubscription("REPO_TRADE", fixQueue);
 		router.addSubscription("REPO_TRADE", transferQueue);
 
@@ -126,9 +123,9 @@ public class MessagingManagerTest {
 		assertNotNull(fetched);
 		assertEquals(2, fetched.getRules().size());
 
-		// Test Routing logic (1-to-N)
+		// Test publishEvent (1-to-N routing)
 		Message<String> repoMsg = new Message<>("REPO_TRADE_001");
-		MessagingManager.route(fetched, repoMsg, "REPO_TRADE");
+		MessagingManager.publishEvent("TRADE_EVENT_ROUTER", "REPO_TRADE", repoMsg);
 
 		Message<String> receivedOnFix = MessagingManager.receive("FIX_QUEUE");
 		assertNotNull(receivedOnFix);
@@ -138,15 +135,9 @@ public class MessagingManagerTest {
 		assertNotNull(receivedOnTransfer);
 		assertEquals("REPO_TRADE_001", receivedOnTransfer.getPayload());
 
-		// Test publishEvent API
-		Message<String> publishedMsg = new Message<>("REPO_TRADE_002");
-		MessagingManager.publishEvent("TRADE_EVENT_ROUTER", "REPO_TRADE", publishedMsg);
-		assertNotNull(MessagingManager.receive("FIX_QUEUE"));
-		assertNotNull(MessagingManager.receive("TRANSFER_QUEUE"));
-
-		// Test default routing
+		// Test default routing on unmatched event
 		Message<String> unknownMsg = new Message<>("UNKNOWN_EVENT");
-		MessagingManager.route(fetched, unknownMsg, "OTHER_TRADE");
+		MessagingManager.publishEvent("TRADE_EVENT_ROUTER", "OTHER_TRADE", unknownMsg);
 
 		Message<String> receivedOnDefault = MessagingManager.receive("DEFAULT_QUEUE");
 		assertNotNull(receivedOnDefault);
@@ -154,8 +145,8 @@ public class MessagingManagerTest {
 	}
 
 	@Test
-	@DisplayName("Save and manage endpoint lifecycle and polling")
-	void testEndpointLifecycleAndPolling() throws TradistaMessagingBusinessException {
+	@DisplayName("Save and manage endpoint lifecycle and poller config")
+	void testEndpointLifecycleAndPollerConfig() throws TradistaMessagingBusinessException {
 		MessageQueue queue = new MessageQueue("ENDPOINT_QUEUE");
 		MessagingManager.saveQueue(queue);
 
@@ -173,29 +164,14 @@ public class MessagingManagerTest {
 		MessageEndpoint fetched = MessagingManager.getEndpointByName("FIX_EXPORT_ENDPOINT");
 		assertNotNull(fetched);
 		assertEquals(LifecycleStatus.STOPPED, fetched.getStatus());
-
-		// Send 2 matching messages and 1 non-matching message
-		MessagingManager.send("ENDPOINT_QUEUE", new Message<>("EXPORT_TRADE_1"));
-		MessagingManager.send("ENDPOINT_QUEUE", new Message<>("IGNORED_TRADE_2"));
-		MessagingManager.send("ENDPOINT_QUEUE", new Message<>("EXPORT_TRADE_3"));
-
-		// When STOPPED, polling should process 0 messages
-		int processedWhileStopped = MessagingManager.pollEndpoint("FIX_EXPORT_ENDPOINT");
-		assertEquals(0, processedWhileStopped);
-		assertEquals(0, CollectingMessageConsumer.getReceived().size());
+		assertNotNull(fetched.getPollerConfig());
+		assertEquals(500L, fetched.getPollerConfig().getDelayMs());
+		assertEquals(5, fetched.getPollerConfig().getMaxMessagesPerPoll());
 
 		// Start endpoint
 		MessagingManager.startEndpoint("FIX_EXPORT_ENDPOINT");
 		MessageEndpoint running = MessagingManager.getEndpointByName("FIX_EXPORT_ENDPOINT");
 		assertEquals(LifecycleStatus.RUNNING, running.getStatus());
-
-		// Poll endpoint
-		int processed = MessagingManager.pollEndpoint("FIX_EXPORT_ENDPOINT");
-		// 3 messages in queue: 2 matched, 1 filtered out
-		assertEquals(2, processed);
-		assertEquals(2, CollectingMessageConsumer.getReceived().size());
-		assertEquals("EXPORT_TRADE_1", CollectingMessageConsumer.getReceived().get(0).getPayload());
-		assertEquals("EXPORT_TRADE_3", CollectingMessageConsumer.getReceived().get(1).getPayload());
 
 		// Pause endpoint
 		MessagingManager.pauseEndpoint("FIX_EXPORT_ENDPOINT");

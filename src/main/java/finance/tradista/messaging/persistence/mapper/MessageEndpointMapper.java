@@ -24,7 +24,8 @@ import finance.tradista.messaging.persistence.entity.PollerConfigEmbeddable;
  ********************************************************************************/
 
 /**
- * Mapper converting between domain MessageEndpoint and persistence MessageEndpointEntity.
+ * Mapper converting between domain MessageEndpoint and persistence
+ * MessageEndpointEntity.
  * 
  * @author Olivier Asuncion
  */

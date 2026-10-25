@@ -146,12 +146,9 @@ endpoint.setPollerConfig(new PollerConfig(500L /* delay ms */, 10 /* max message
 MessagingManager.saveEndpoint(endpoint);
 
 // Control lifecycle
-MessagingManager.startEndpoint("FIX_EXPORT_ENDPOINT"); // LifecycleStatus.RUNNING
+MessagingManager.startEndpoint("FIX_EXPORT_ENDPOINT"); // LifecycleStatus.RUNNING (starts listener or poller container)
 // MessagingManager.pauseEndpoint("FIX_EXPORT_ENDPOINT"); // LifecycleStatus.PAUSED
 // MessagingManager.stopEndpoint("FIX_EXPORT_ENDPOINT");  // LifecycleStatus.STOPPED
-
-// Trigger polling cycle
-int processed = MessagingManager.pollEndpoint("FIX_EXPORT_ENDPOINT");
 ```
 
 ---

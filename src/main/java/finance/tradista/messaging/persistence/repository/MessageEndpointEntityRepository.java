@@ -31,7 +31,8 @@ import jakarta.data.repository.Update;
  ********************************************************************************/
 
 /**
- * Jakarta Data Repository for MessageEndpointEntity using Jakarta Query expressions.
+ * Jakarta Data Repository for MessageEndpointEntity using Jakarta Query
+ * expressions.
  * 
  * @author Olivier Asuncion
  */

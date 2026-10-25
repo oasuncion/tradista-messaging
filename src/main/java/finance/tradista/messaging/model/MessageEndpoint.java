@@ -21,8 +21,8 @@ import java.util.Objects;
 
 /**
  * Message Endpoint representing a consumer/listener connected to a queue, with
- * optional filter and poller configuration, managing its lifecycle.
- * Pure domain configuration model.
+ * optional filter and poller configuration, managing its lifecycle. Pure domain
+ * configuration model.
  * 
  * @author Olivier Asuncion
  */
@@ -35,7 +35,7 @@ public class MessageEndpoint implements Serializable {
 	private MessageQueue queue;
 	private FilterConfig filterConfig;
 	private String consumerClass;
-	private PollerConfig pollerConfig = new PollerConfig();
+	private PollerConfig pollerConfig;
 	private LifecycleStatus status = LifecycleStatus.STOPPED;
 
 	public MessageEndpoint() {

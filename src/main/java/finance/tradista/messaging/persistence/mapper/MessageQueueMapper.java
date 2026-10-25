@@ -20,7 +20,8 @@ import finance.tradista.messaging.persistence.entity.MessageQueueEntity;
  ********************************************************************************/
 
 /**
- * Mapper converting between domain MessageQueue and persistence MessageQueueEntity.
+ * Mapper converting between domain MessageQueue and persistence
+ * MessageQueueEntity.
  * 
  * @author Olivier Asuncion
  */
