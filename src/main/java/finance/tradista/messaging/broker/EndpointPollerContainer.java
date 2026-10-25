@@ -146,7 +146,6 @@ public class EndpointPollerContainer implements EndpointContainer {
 		}
 	}
 
-	@SuppressWarnings("unchecked")
 	private void pollBatch() {
 		if (paused.get() || !running.get() || consumer == null) {
 			return;
